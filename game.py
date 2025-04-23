@@ -121,6 +121,33 @@ while running:
                 no_btn = pygame.Rect(dialog_x + 50, dialog_y + 160 + 54, 190, 66)
                 if yes_btn.collidepoint(mouse_x, mouse_y):
                     if confirmation_dialog == 'potion':
+                        heal_target_hp = min(100, player.hp + 15)  # Восстановление здоровья на 15
+                        healing_in_progress = True
+                        player.has_potion = False
+                        healing_sound.play()
+                    if healing_in_progress:
+                        if player.hp < heal_target_hp:
+                            player.hp += 1
+                            pygame.time.delay(10)  # Уменьшаем задержку для плавного увеличения
+                        else:
+                            player.hp = heal_target_hp
+                            healing_in_progress = False
+                    elif confirmation_dialog == 'poison':
+                        poison_timer = 5
+                        poison_effect_active = True
+                    confirmation_dialog = None
+                    inventar.has_potion = False if confirmation_dialog == 'potion' else inventar.has_potion
+                    inventar.has_potion = False if confirmation_dialog == 'poison' else inventar.has_potion
+                    show_inventory = False
+                elif no_btn.collidepoint(mouse_x, mouse_y):
+                    confirmation_dialog = None
+
+                dialog_x = (WIDTH - 600) // 2
+                dialog_y = 79
+                yes_btn = pygame.Rect(dialog_x + 600 - 190 - 50, dialog_y + 160 + 54, 190, 66)
+                no_btn = pygame.Rect(dialog_x + 50, dialog_y + 160 + 54, 190, 66)
+                if yes_btn.collidepoint(mouse_x, mouse_y):
+                    if confirmation_dialog == 'potion':
                         heal_target_hp = min(100, player.hp + 15)
                         healing_in_progress = True
                         player.has_potion = False
@@ -309,9 +336,9 @@ while running:
             text_surface = font.render(text, True, (255, 255, 255))
             screen.blit(text_surface, (button_x + (button_width - text_surface.get_width()) // 2, button_y + i * (button_height + button_spacing) + (button_height - text_surface.get_height()) // 2))
     elif not show_inventory:
-        draw_health_bar(29, 54, player.hp, player.max_hp, health_inner_color)
+        draw_health_bar(29, 54, player.hp, player.max_hp, health_inner_color)  # Отображение здоровья игрока
         bar_color = poison_bar_color if poison_effect_active else health_inner_color
-        draw_health_bar(WIDTH - 29 - health_bar_width, 54, enemy.hp, enemy.max_hp, bar_color)
+        draw_health_bar(WIDTH - 29 - health_bar_width, 54, enemy.hp, enemy.max_hp, bar_color)  # Отображение здоровья врага
 
         screen.blit(player_skin, (player.x, HEIGHT - player_height - 80))
         screen.blit(enemy_skin, (WIDTH - enemy_width, HEIGHT - enemy_height - 70))
