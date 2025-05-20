@@ -49,6 +49,8 @@ original_player_x = player.x
 
 player_skin = pygame.image.load(player_skin_path)
 enemy_skin = pygame.image.load(enemy_skin_path)
+projectiles = pygame.sprite.Group()
+
 
 player_width = 345
 player_height = 345
@@ -92,7 +94,22 @@ slot_size = 193.3
 slot_color = (99, 80, 61)
 slot_spacing = (inventory_size - 2 * slot_size) / 3
 
-enemy = Enemy(hp=100, power=15)
+enemy = Enemy(
+    x=WIDTH - enemy_width,  # Начальная позиция X
+    y=HEIGHT - enemy_height - 70,  # Начальная позиция Y
+    hp=100, 
+    power=15, 
+    level=1)
+
+enemy.original_x = WIDTH - enemy_width  # Важно сохранить!
+
+enemy_attack_frames = [
+    os.path.join("пикчи", "капуста.png"),
+    os.path.join("пикчи", "пельмень.png"),
+    os.path.join("пикчи", "морковка.png")
+]
+enemy.load_attack_frames(enemy_attack_frames)
+damage_texts = []
 
 poison_timer = 0
 poison_effect_active = False
@@ -100,9 +117,24 @@ healing_in_progress = False
 explosion_playing = False 
 victory_screen = False
 victory_timer = 0
+defeat_timer = 0
 last_damage_time_player = pygame.time.get_ticks()
 damage_interval_player = 2000
 level_start_time = None
+
+enemy_attack_frames = [
+    os.path.join("пикчи", "капуста.png"),
+    os.path.join("пикчи", "пельмень.png"),
+    os.path.join("пикчи", "морковка.png")
+]
+enemy.load_attack_frames(enemy_attack_frames)
+
+attack_animation = {
+    'active': False,
+    'start_time': 0,
+    'original_skin': None,
+    'food_skin': None
+}
 
 # Основной цикл игры
 running = True
@@ -115,33 +147,6 @@ while running:
         elif event.type == pygame.MOUSEBUTTONDOWN:
             mouse_x, mouse_y = event.pos
             if confirmation_dialog:
-                dialog_x = (WIDTH - 600) // 2
-                dialog_y = 79
-                yes_btn = pygame.Rect(dialog_x + 600 - 190 - 50, dialog_y + 160 + 54, 190, 66)
-                no_btn = pygame.Rect(dialog_x + 50, dialog_y + 160 + 54, 190, 66)
-                if yes_btn.collidepoint(mouse_x, mouse_y):
-                    if confirmation_dialog == 'potion':
-                        heal_target_hp = min(100, player.hp + 15)  # Восстановление здоровья на 15
-                        healing_in_progress = True
-                        player.has_potion = False
-                        healing_sound.play()
-                    if healing_in_progress:
-                        if player.hp < heal_target_hp:
-                            player.hp += 1
-                            pygame.time.delay(10)  # Уменьшаем задержку для плавного увеличения
-                        else:
-                            player.hp = heal_target_hp
-                            healing_in_progress = False
-                    elif confirmation_dialog == 'poison':
-                        poison_timer = 5
-                        poison_effect_active = True
-                    confirmation_dialog = None
-                    inventar.has_potion = False if confirmation_dialog == 'potion' else inventar.has_potion
-                    inventar.has_potion = False if confirmation_dialog == 'poison' else inventar.has_potion
-                    show_inventory = False
-                elif no_btn.collidepoint(mouse_x, mouse_y):
-                    confirmation_dialog = None
-
                 dialog_x = (WIDTH - 600) // 2
                 dialog_y = 79
                 yes_btn = pygame.Rect(dialog_x + 600 - 190 - 50, dialog_y + 160 + 54, 190, 66)
@@ -180,24 +185,28 @@ while running:
                             level_start_time = pygame.time.get_ticks()
                             show_level_select = False
                             level_selected = True
+                            player.reset()
                             if i == 0:
                                 enemy_skin_path = os.path.join("пикчи", "котик-капуста.png")
                                 enemy_width = 411
                                 enemy_height = 377
                                 damage_interval_player = 2000
                                 damage_percent = 0.1
+                                enemy.level = 1
                             elif i == 1:
                                 enemy_skin_path = os.path.join("пикчи", "котик-пельмешка.png")
                                 enemy_width = 411
                                 enemy_height = 377
                                 damage_interval_player = 2000
                                 damage_percent = 0.15
+                                enemy.level = 2
                             elif i == 2:
                                 enemy_skin_path = os.path.join("пикчи", "котик-морковка.png")
                                 enemy_width = 448
                                 enemy_height = 464
                                 damage_interval_player = 1000
                                 damage_percent = 0.1
+                                enemy.level = 3
 
                             enemy_skin = pygame.image.load(enemy_skin_path)
                             enemy_skin = pygame.transform.scale(enemy_skin, (enemy_width, enemy_height))
@@ -220,7 +229,7 @@ while running:
                                 elif i == 0 and j == 1 and inventar.has_potion:
                                     confirmation_dialog = 'poison'
         
-        elif event.type == pygame.KEYDOWN:
+        elif event.type == pygame.KEYDOWN and level_selected:
             if event.key == pygame.K_i and level_selected and not confirmation_dialog:
                 show_inventory = not show_inventory
             elif event.key == pygame.K_e:
@@ -241,12 +250,6 @@ while running:
 
     if not victory_screen and not defeat_screen:
         current_time = pygame.time.get_ticks()
-    if level_start_time: 
-        if current_time - level_start_time >= 2000:
-            if current_time - last_damage_time_player >= damage_interval_player:
-                enemy_damage = int(damage_percent * player.max_hp)
-                player.hp = max(0, player.hp - enemy_damage)
-                last_damage_time_player = current_time
 
     if enemy.hp <= 0 and not explosion_playing:
         enemy_skin = pygame.image.load(explosion_path)
@@ -264,7 +267,6 @@ while running:
 
     if player.hp <= 0 and not defeat_playing:
         defeat_playing = True
-
         defeat_timer = pygame.time.get_ticks()
         defeat_screen = True
 
@@ -273,14 +275,14 @@ while running:
         defeat_background = pygame.image.load(defeat_background_path)
         defeat_background = pygame.transform.scale(defeat_background, (WIDTH, HEIGHT))
 
-        screen.blit(defeat_background, (0, 0))
-
         if pygame.time.get_ticks() - defeat_timer >= 10000:
-
-            player.hp = 100
+            show_level_select = True
+            level_selected = False  # Добавить эту строку!
+            player.hp = player.max_hp
             enemy.hp = 100
             defeat_screen = False
-            show_level_select = True
+
+        screen.blit(defeat_background, (0, 0))
 
     if victory_screen:
         victory_image_path = os.path.join("пикчи", "Фон победа.png")
@@ -290,9 +292,12 @@ while running:
         screen.blit(victory_image, (0,0))
         if pygame.time.get_ticks() - victory_timer >= 8000:
             show_level_select = True
+            level_selected = False  # Добавить эту строку!
             enemy.hp = 100
-            player.hp = 100
+            player.hp = player.max_hp
             victory_screen = False
+            player.x = original_player_x
+            enemy_skin = pygame.image.load(enemy_skin_path)
 
             
     if poison_timer > 0 and poison_effect_active:
@@ -341,8 +346,8 @@ while running:
         draw_health_bar(WIDTH - 29 - health_bar_width, 54, enemy.hp, enemy.max_hp, bar_color)  # Отображение здоровья врага
 
         screen.blit(player_skin, (player.x, HEIGHT - player_height - 80))
-        screen.blit(enemy_skin, (WIDTH - enemy_width, HEIGHT - enemy_height - 70))
-
+        screen.blit(enemy_skin, (enemy.x, enemy.y))
+    
     if show_inventory:
         overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 150))
@@ -372,9 +377,6 @@ while running:
                 screen.blit(item_scaled, (item_x, item_y))
 
     if confirmation_dialog:
-        dialog_x = (WIDTH - 600) // 2
-        dialog_y = 79
-        pygame.draw.rect(screen, (255, 255, 255), (dialog_x, dialog_y, 600, 320))
 
         font = pygame.font.Font(None, 50)
         item_name = "Зелье здоровья" if confirmation_dialog == 'potion' else "Зелье отравления"
@@ -409,8 +411,6 @@ while running:
             show_inventory = False
         elif no_button.collidepoint(mouse_x, mouse_y):
             confirmation_dialog = None
-
-    
     if attacking:
         if player.x < attack_target_x:
             player.x += attack_step * attack_direction
@@ -419,8 +419,37 @@ while running:
             if player.x >= attack_target_x and player.x <= attack_target_x + enemy_width:
                 enemy.hp -= damage
                 damage_sound.play()
-            returning = True 
+            returning = True
+    if enemy.perform_attack(player):
+        screen.blit(enemy_skin, (enemy.x, enemy.y))
+        attack_animation['active'] = True
+        attack_animation['start_time'] = pygame.time.get_ticks()
+        attack_animation['original_skin'] = player_skin
+        attack_animation['food_skin'] = pygame.image.load(
+            os.path.join("пикчи", enemy.attack_food[enemy.level])
+        )
+    if not enemy.attack_animation_active and enemy.attack_start_time != 0:
+        player.take_damage(enemy.power)
+        damage_sound.play()
+        enemy.attack_start_time = 0
+    
+    if enemy.attack_animation_active:        
+        if time.time() - enemy.attack_start_time > 0.4:
+            enemy.attack_animation_active = False
+    # Анимация атаки
+    enemy.update_attack_animation()
 
+    if attack_animation['active']:
+        current_time = pygame.time.get_ticks()
+        
+        player_skin = attack_animation['food_skin']
+        
+        if current_time - attack_animation['start_time'] > 400:
+            attack_animation['active'] = False
+            player_skin = attack_animation['original_skin']
+            player.take_damage(enemy.power)
+            damage_sound.play()
+            
     if returning:
         if player.x > original_player_x:
             player.x -= return_step
