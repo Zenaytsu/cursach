@@ -230,6 +230,8 @@ while running:
                                     confirmation_dialog = 'poison'
         
         elif event.type == pygame.KEYDOWN and level_selected:
+            if victory_screen or defeat_screen or not level_selected:
+                continue
             if event.key == pygame.K_i and level_selected and not confirmation_dialog:
                 show_inventory = not show_inventory
             elif event.key == pygame.K_e:
@@ -249,7 +251,15 @@ while running:
                 attack_step = (WIDTH - enemy_width - 30 - player.x) // 100 
 
     if not victory_screen and not defeat_screen:
-        current_time = pygame.time.get_ticks()
+        if enemy.perform_attack(player):
+            current_time = pygame.time.get_ticks()
+            screen.blit(enemy_skin, (enemy.x, enemy.y))
+            attack_animation['active'] = True
+            attack_animation['start_time'] = pygame.time.get_ticks()
+            attack_animation['original_skin'] = player_skin
+            attack_animation['food_skin'] = pygame.image.load(
+                os.path.join("пикчи", enemy.attack_food[enemy.level])
+        )
 
     if enemy.hp <= 0 and not explosion_playing:
         enemy_skin = pygame.image.load(explosion_path)
@@ -271,6 +281,9 @@ while running:
         defeat_screen = True
 
     if defeat_screen:
+        attacking = False
+        returning = False
+        enemy.attack_animation_active = False
         defeat_background_path = os.path.join("пикчи", "Проигрыш.png")
         defeat_background = pygame.image.load(defeat_background_path)
         defeat_background = pygame.transform.scale(defeat_background, (WIDTH, HEIGHT))
@@ -285,6 +298,9 @@ while running:
         screen.blit(defeat_background, (0, 0))
 
     if victory_screen:
+        attacking = False
+        returning = False
+        enemy.attack_animation_active = False
         victory_image_path = os.path.join("пикчи", "Фон победа.png")
         victory_image = pygame.image.load(victory_image_path)
         victory_image = pygame.transform.scale(victory_image, (WIDTH, HEIGHT))
@@ -420,14 +436,6 @@ while running:
                 enemy.hp -= damage
                 damage_sound.play()
             returning = True
-    if enemy.perform_attack(player):
-        screen.blit(enemy_skin, (enemy.x, enemy.y))
-        attack_animation['active'] = True
-        attack_animation['start_time'] = pygame.time.get_ticks()
-        attack_animation['original_skin'] = player_skin
-        attack_animation['food_skin'] = pygame.image.load(
-            os.path.join("пикчи", enemy.attack_food[enemy.level])
-        )
     if not enemy.attack_animation_active and enemy.attack_start_time != 0:
         player.take_damage(enemy.power)
         damage_sound.play()

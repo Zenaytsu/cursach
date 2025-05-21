@@ -21,7 +21,7 @@ class Mob:
         self.damage = damage  
 
 class Enemy(Mob):
-    def __init__(self, x=0, y=0, hp=100, power=10, level=1):
+    def __init__(self, x=0, y=0, hp=100, power=10, level=1, attack_cooldown=2000):
         super().__init__(x, y, hp, power)
         self.last_attack_time = pygame.time.get_ticks() 
         self.original_x = x 
@@ -40,20 +40,26 @@ class Enemy(Mob):
     def load_attack_frames(self, frame_paths):
         self.attack_frames = [pygame.image.load(p) for p in frame_paths]
 
-    def start_attack_animation(self, target):  # Правильное имя метода
+    def start_attack_animation(self, target):
         self.attack_animation_active = True
         self.attack_start_time = pygame.time.get_ticks()
 
     def perform_attack(self, target):
-        current_time = pygame.time.get_ticks()  # Используем pygame.time
+        if target.hp <= 0 or self.hp <= 0:
+            return False
+        current_time = pygame.time.get_ticks() 
         if (current_time - self.last_attack_time) >= self.attack_cooldown:
             self.last_attack_time = current_time
-            self.start_attack_animation(target)
+            if target is not None:
+                self.start_attack_animation(target)
             return True
         return False
+    
     def update_attack_animation(self):
         if self.attack_animation_active:
             elapsed = pygame.time.get_ticks() - self.attack_start_time
+            if elapsed >= self.attack_cooldown:
+                self.attack_animation_active = False
     
 class Gamer(Mob):
     def __init__(self, x, y, hp, power):
@@ -90,6 +96,10 @@ class Inventar(Mob):
             self.has_potion = self.health_potion_count > 0
 
     def use_poison_potion(self, enemy):
+        if self.poison_potion_count > 0:
+            poison_damage = 5
+            enemy.hp = max(0, enemy.hp - poison_damage * 5)
+            self.poison_potion_count -= 1
         if self.poison_potion_count > 0:
             poison_damage = 5
             for _ in range(5):
